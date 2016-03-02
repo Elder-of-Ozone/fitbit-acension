@@ -1,77 +1,83 @@
-#
-#	Prouction Template for Fitbit
-#
-#	If you're reading this, this is just a template
-#	It serves no purpose but authenticates a fitbit api user
-#	
-#	You do however need to do a few things first.
-#	They are written in the script but this is the TL:DR version.
-#	So atleast you know.
-#	
-#	1.  I encourage you to read the fitbit API section on authentication	
-#	2.  This script utilises a config parser. Ensure that you
-#	have a config file named 'config.ini' with the following properties
-#		[param]
-#		a_key = [access key]
-#		c_secret = [consumer secret]
-#	substituting the approperiate values for the above.
-#	3.  When you run the file, a link will open. Please click on the link
-#	4a. In the browser, it won't open. THIS FAILURE IS TO BE EXPECTED!
-#	4b. Right, in the link, it should say code=<NUMBERS OR LETTERS>
-#	5a. Copy this code and paste this back into the script. 
-#	5b. There is raw input that will allow the above to occur.
-#	6.  The script should loop infinititely. 
-#
-#	This script is powered from the python-fitbit api 
-#	Many thanks to Orcisgit
-#	
-#	Aaron Fordham
-
-
-#import libraries obviously
+# It All Starts With The Shebang!
+#!/usr/bin/python2.7
 
 import fitbit
 import ConfigParser
 import time
+import shutil
+import os
 
-# get keys from config file
+# Save a file named config.ini with the following contents:
+# c_id      = [INSERT YOUR CLIENT ID]
+# c_secret  = [INSERT YOUR CLIENT SECRET]
 
-parser = ConfigParser.SafeConfigParser()
+
+# first we read our config file
+parser = ConfigParser.RawConfigParser()
 parser.read('config.ini')
 
+# Then we get our client id and secrets. 
 configName = 'param'
 
-access_key = parser.get(configName, 'a_key')
-consumer_secret = parser.get(configName, 'c_secret')
+client_id = parser.get(configName, 'c_id')
+client_secret = parser.get(configName, 'c_secret')
 
-code = '444c183b42ff165f457dae6f17100754d071f6c7'
-redirect_uri = 'http://127.0.0.1:8080/'
+# Now we check if we have already logged in.
+# TO DO: Check if refresh token has expired (~ 14 days). 
+try:
+    refresh_token = parser.get(configName, 'r_token')
+    access_token = parser.get('param', 'a_token')
 
-client = fitbit.Fitbit(access_key, consumer_secret, oauth2=True)
+    refresh_token = unicode(refresh_token, "utf-8")
+    access_token =  unicode(access_token, "utf-8")
+    print "Access and Refresh token already created, so let's create our model."
 
-# Although this says expires in 86400, it uses a different authotencation system than first thought. Therefore that parameter isn't needed.
-print client.client.authorize_token_url(expires_in = '86400', redirect_uri='http://127.0.0.1:8080/')
+    # Now we create our client model. Note we have oauth2 = true 
+    #since oauth1.0 is depreceiated.
+    client = fitbit.Fitbit(client_id, client_secret, oauth2=True, access_token = access_token, refresh_token = refresh_token) 
+    
 
-# The line above returns a code at the end of the URL. Copy and paste this into the terminal as stin. 
-code = raw_input()
+except:
 
-# This line gathers the access token and refresh token
-client.client.fetch_access_token(code = code, redirect_uri = redirect_uri)
+    client = fitbit.Fitbit(client_id, client_secret, oauth2=True)
+
+
+    print client.client.authorize_token_url(expires_in = '86400', redirect_uri='http://127.0.0.1:8080/')
+    
+    code = raw_input()
+
+    redirect_uri = 'http://127.0.0.1:8080/'
+    client.client.fetch_access_token(code = code, redirect_uri = redirect_uri)
+
+    refresh_token = client.client.token['refresh_token']
+    access_token = client.client.token['access_token']
+
+    parser.set(configName, 'r_token', refresh_token)
+    parser.set(configName, 'a_token', access_token)
+    
+    with open('config.ini', 'wb') as configfile:
+        parser.write(configfile)
+    pass
 
 while True:
 
-	# refresh tokens. Refresh tokens last for 14 days
-	# this is compared to access tokens which last for an hour
-	# Therefore, it is imperative that the tokens get refreshed at the
-	# start of the loop.
-
-	client.client.refresh_token()
-
+        client.client.refresh_token()
 	# DO STUFF
-	#print client.sleep()
-	
-	
-	# Halt program for a certain time before starting the loop again.
-	time.sleep(1800)
+        
+        print client.sleep()
+       
+
+        refresh_token = client.client.token['refresh_token']
+        access_token = client.client.token['access_token']
+
+        parser.set(configName, 'r_token', refresh_token)
+        parser.set(configName, 'a_token', access_token)
+       
+        config = open("config.ini",'wb')
+        parser.write(config)
+        config.close()
+
+        # Halt program for a certain time before starting the loop again. 
+        time.sleep(30)
 
 
